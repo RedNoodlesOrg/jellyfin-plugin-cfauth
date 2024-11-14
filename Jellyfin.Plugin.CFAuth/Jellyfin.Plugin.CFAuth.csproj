@@ -37,7 +37,32 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="call postbuild.bat $(TargetDir)" />
+    <ItemGroup>
+      <FilesToDelete Include="$(TargetDir)Diacritics.dll"/>
+      <FilesToDelete Include="$(TargetDir)Emby.Naming.dll"/>
+      <FilesToDelete Include="$(TargetDir)ICU4N.dll"/>
+      <FilesToDelete Include="$(TargetDir)ICU4N.Transliterator.dll"/>
+      <FilesToDelete Include="$(TargetDir)J2N.dll"/>
+      <FilesToDelete Include="$(TargetDir)Jellyfin.Data.dll"/>
+      <FilesToDelete Include="$(TargetDir)MediaBrowser.Common.dll"/>
+      <FilesToDelete Include="$(TargetDir)MediaBrowser.Controller.dll"/>
+      <FilesToDelete Include="$(TargetDir)MediaBrowser.Model.dll"/>
+      <FilesToDelete Include="$(TargetDir)Microsoft.Bcl.TimeProvider.dll"/>
+      <FilesToDelete Include="$(TargetDir)Microsoft.Extensions.Configuration.Binder.dll"/>
+      <FilesToDelete Include="$(TargetDir)Microsoft.Extensions.DependencyInjection.Abstractions.dll"/>
+      <FilesToDelete Include="$(TargetDir)Microsoft.Extensions.DependencyInjection.dll"/>
+      <FilesToDelete Include="$(TargetDir)Microsoft.Extensions.Logging.Abstractions.dll"/>
+      <FilesToDelete Include="$(TargetDir)Microsoft.Extensions.Options.dll"/>
+      <FilesToDelete Include="$(TargetDir)Jellyfin.Extensions.dll"/>
+      <FilesToDelete Include="$(TargetDir)Microsoft.Extensions.Logging.dll"/>
+    </ItemGroup>
+    <Message Text="Deleting Files @(FilesToDelete)"/>
+    <Delete Files="@(FilesToDelete)">
+      <Output
+         TaskParameter="DeletedFiles"
+         ItemName="FilesDeleted"/>
+    </Delete>
+    <Message Text="Files deleted: @(FilesDeleted)"/>
   </Target>
 
 </Project>
