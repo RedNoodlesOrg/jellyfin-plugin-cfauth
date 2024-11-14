@@ -1,16 +1,22 @@
 ---
-name: "Template"
-guid: "eb5d7894-8eef-4b36-aa6f-5d124e828ce1"
+name: "CFAuth"
+guid: "09edc1d4-b95a-464b-8059-ae6b5f5daa93"
 version: "1.0.0.0"
-targetAbi: "10.9.0.0"
+targetAbi: "10.10.1.0"
 framework: "net8.0"
-overview: "Short description about your plugin"
+overview: "Cloudflared Access Authentication"
 description: >
-  This is a longer description that can span more than one
-  line and include details about your plugin.
-category: "General"
-owner: "jellyfin"
+  A plugin that reads and validates JSON Web Tokens.
+  Specifically for Cloudflare Access and their tunneling.
+category: "Authentication"
+owner: "RedNoodles"
 artifacts:
-- "Jellyfin.Plugin.Template.dll"
+- "Jellyfin.Plugin.CFAuth.dll"
+- "Microsoft.IdentityModel.Abstractions.dll"
+- "Microsoft.IdentityModel.JsonWebTokens.dll"
+- "Microsoft.IdentityModel.Logging.dll"
+- "Microsoft.IdentityModel.Tokens.dll"
+- "System.IdentityModel.Tokens.Jwt.dll"
 changelog: >
-  changelog
+ - Initial release: 1.0.0.0
+

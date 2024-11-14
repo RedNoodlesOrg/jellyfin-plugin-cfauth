@@ -1,0 +1,8 @@
+{
+    "profiles": {
+        "Jellyfin.Plugin.CFAuth": {
+            "commandName": "Project",
+            "nativeDebugging": true
+        }
+    }
+}
