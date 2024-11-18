@@ -1,7 +1,7 @@
 ---
 name: "CFAuth"
 guid: "09edc1d4-b95a-464b-8059-ae6b5f5daa93"
-version: "1.0.0.0"
+version: "1.1.0.0"
 targetAbi: "10.10.1.0"
 framework: "net8.0"
 overview: "Cloudflared Access Authentication"
@@ -18,5 +18,6 @@ artifacts:
 - "Microsoft.IdentityModel.Tokens.dll"
 - "System.IdentityModel.Tokens.Jwt.dll"
 changelog: >
+ - Refactor code: 1.1.0.0
  - Initial release: 1.0.0.0
 

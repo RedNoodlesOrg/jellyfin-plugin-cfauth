@@ -10,14 +10,24 @@
             <div class="content-primary">
                 <form id="CFAuthConfigForm">
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="TeamName">Team Name</label>
-                        <input id="TeamName" name="TeamName" type="text" is="emby-input" />
-                        <div class="fieldDescription">Name of your Team in Cloudflare One</div>
+                        <label class="inputLabel inputLabelUnfocused" for="Teamname">Team Name</label>
+                        <input id="Teamname" name="Teamname" type="text" is="emby-input" />
+                        <div class="fieldDescription">Your team name</div>
                     </div>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="Audience">Application Audience (AUD) Tag</label>
                         <input id="Audience" name="Audience" type="text" is="emby-input" />
-                        <div class="fieldDescription">Needed to validate JWT</div>
+                        <div class="fieldDescription">Multiple tags possible; Use comma as delimiter.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="CookieName">Cookie Name</label>
+                        <input id="CookieName" name="CookieName" type="text" is="emby-input" />
+                        <div class="fieldDescription"></div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="HeaderName">Header Name</label>
+                        <input id="HeaderName" name="HeaderName" type="text" is="emby-input" />
+                        <div class="fieldDescription"></div>
                     </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
@@ -36,8 +46,10 @@
                 .addEventListener('pageshow', function() {
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(CFAuthConfig.pluginUniqueId).then(function (config) {
-                        document.querySelector('#TeamName').value = config.Teamname;
+                        document.querySelector('#Teamname').value = config.Teamname;
                         document.querySelector('#Audience').value = config.Audience;
+                        document.querySelector('#CookieName').value = config.CookieName;
+                        document.querySelector('#HeaderName').value = config.HeaderName;
                         Dashboard.hideLoadingMsg();
                     });
                 });
@@ -46,8 +58,10 @@
                 .addEventListener('submit', function(e) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(CFAuthConfig.pluginUniqueId).then(function (config) {
-                    config.Teamname = document.querySelector('#TeamName').value;
+                    config.Teamname = document.querySelector('#Teamname').value;
                     config.Audience = document.querySelector('#Audience').value;
+                    config.CookieName = document.querySelector('#CookieName').value;
+                    config.HeaderName = document.querySelector('#HeaderName').value;
                     ApiClient.updatePluginConfiguration(CFAuthConfig.pluginUniqueId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
                     });

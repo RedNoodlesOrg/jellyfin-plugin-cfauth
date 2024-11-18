@@ -1,35 +1,37 @@
-﻿using System;
+using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Net.Http;
 using System.Security.Claims;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Jellyfin.Data.Entities;
+using Jellyfin.Plugin.CFAuth.Configuration;
+using JWTValidation;
+using JWTValidation.KeyManagement;
 using MediaBrowser.Controller.Authentication;
+using MediaBrowser.Model.Plugins;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
 
 namespace Jellyfin.Plugin.CFAuth
 {
     /// <summary>
-    /// JWT Auth Plugin.
+    /// JWT Auth CFAuthPlugin.
     /// </summary>
     public class CFAuthenticationProviderPlugin : IAuthenticationProvider
     {
-        private readonly CFJwtValidator _jwtValidator;
-        private readonly ILogger<CFAuthenticationProviderPlugin> _logger;
-        private readonly IHttpContextAccessor _contextAccessor;
+        private JwtValidator? _jwtValidator;
+        private IKeyProvider? _keyProvider;
+        private IHttpContextAccessor _contextAccessor;
+        private string? _audiences;
+        private string? _cookieName;
+        private string? _headerName;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CFAuthenticationProviderPlugin"/> class.
         /// </summary>
-        /// <param name="logger">Logger.</param>
-        /// <param name="contextAccessor">Context.</param>
-        public CFAuthenticationProviderPlugin(ILogger<CFAuthenticationProviderPlugin> logger, IHttpContextAccessor contextAccessor)
+        /// <param name="contextAccessor">The HttpContext.</param>
+        public CFAuthenticationProviderPlugin(IHttpContextAccessor contextAccessor)
         {
-            _jwtValidator = new();
-            _logger = logger;
             _contextAccessor = contextAccessor;
         }
 
@@ -39,51 +41,81 @@ namespace Jellyfin.Plugin.CFAuth
         /// <inheritdoc/>
         public bool IsEnabled => true;
 
+        [MemberNotNullWhen(true, ["_keyProvider", "_jwtValidator", "_audiences", "_cookieName", "_headerName"])]
+        private bool Init()
+        {
+            if (CFAuthPlugin.Instance is null)
+            {
+                return false;
+            }
+
+            _keyProvider = new CloudflareKeyProvider { TeamName = CFAuthPlugin.Instance.Configuration.Teamname };
+            _jwtValidator = new JwtValidator(_keyProvider);
+            _audiences = CFAuthPlugin.Instance.Configuration.Audience;
+            _cookieName = CFAuthPlugin.Instance.Configuration.CookieName;
+            _headerName = CFAuthPlugin.Instance.Configuration.HeaderName;
+
+            CFAuthPlugin.Instance.ConfigurationChanged += ConfigurationChangedHandler;
+
+            return true;
+        }
+
+        private void ConfigurationChangedHandler(object? sender, BasePluginConfiguration e)
+        {
+            if (_keyProvider is null)
+            {
+                return;
+            }
+
+            ((CloudflareKeyProvider)_keyProvider).TeamName = ((CFAuthPluginConfiguration)e).Teamname;
+            _audiences = ((CFAuthPluginConfiguration)e).Audience;
+            _cookieName = ((CFAuthPluginConfiguration)e).CookieName;
+            _headerName = ((CFAuthPluginConfiguration)e).HeaderName;
+        }
+
+        private static AuthenticationException GenericError()
+        {
+            return new AuthenticationException("JWT is null or not valid");
+        }
+
+        private string FetchToken()
+        {
+            if (_cookieName is null || _headerName is null)
+            {
+                throw GenericError();
+            }
+
+            var httpContext = _contextAccessor.HttpContext ?? throw GenericError();
+            if (!(httpContext.Request.Cookies.TryGetValue(_cookieName, out var tokenCookie) | httpContext.Request.Headers.TryGetValue(_headerName, out var tokenHeader)))
+            {
+                throw GenericError();
+            }
+
+            var token = (tokenCookie is not null ? tokenCookie : (tokenHeader.Count == 1) ? tokenHeader.FirstOrDefault() : throw GenericError()) ?? throw GenericError();
+            return token;
+        }
+
         /// <inheritdoc/>
         public async Task<ProviderAuthenticationResult> Authenticate(string username, string password)
         {
-            var httpContext = _contextAccessor.HttpContext;
-            if (httpContext == null)
+            if (_jwtValidator is null || _audiences is null)
             {
-                throw new AuthenticationException("HttpContext is null");
+                if (!Init())
+                {
+                    throw new InvalidOperationException("Init failed.");
+                }
             }
 
-            TokenValidationResult? result = null;
-            try
+            var result = await _jwtValidator.ValidateJwtAsync(FetchToken(), _audiences).ConfigureAwait(false);
+            if (result is null || !result.IsValid)
             {
-                result = await _jwtValidator.ValidateJwtAsync(httpContext).ConfigureAwait(false);
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogWarning("Error while parsing keys: {}", [ex.Message]);
-            }
-            catch (UriFormatException ex)
-            {
-                _logger.LogWarning("Failed to fetch keyset: {}", [ex.Message]);
-            }
-            catch (SecurityTokenValidationException ex)
-            {
-                _logger.LogWarning("Failed to validate token: {}", [ex.Message]);
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogWarning("Failed to fetch keyset: {}", [ex.Message]);
+                throw GenericError();
             }
 
-            if (result == null || !result.IsValid)
-            {
-                throw new AuthenticationException("JWT is null or not valid");
-            }
-
-            var email = (string)result.Claims.Where(claim =>
+            string email = (string)result.Claims.Where(claim =>
             {
                 return claim.Key.Equals(ClaimTypes.Email, StringComparison.Ordinal);
-            }).FirstOrDefault().Value ?? throw new AuthenticationException("JWT is null or not valid");
-
-            if (email == null)
-            {
-                throw new AuthenticationException("User does not exist");
-            }
+            }).FirstOrDefault().Value ?? throw GenericError();
 
             return new ProviderAuthenticationResult
             {
