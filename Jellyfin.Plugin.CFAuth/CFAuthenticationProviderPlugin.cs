@@ -10,7 +10,6 @@ using JWTValidation.KeyManagement;
 using MediaBrowser.Controller.Authentication;
 using MediaBrowser.Model.Plugins;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Net.Http.Headers;
 
 namespace Jellyfin.Plugin.CFAuth
 {
