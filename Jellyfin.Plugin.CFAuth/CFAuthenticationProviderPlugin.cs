@@ -2,12 +2,14 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Jellyfin.Data.Entities;
 using Jellyfin.Plugin.CFAuth.Configuration;
 using JWTValidation;
 using JWTValidation.KeyManagement;
 using MediaBrowser.Controller.Authentication;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Plugins;
 using Microsoft.AspNetCore.Http;
 
@@ -16,11 +18,12 @@ namespace Jellyfin.Plugin.CFAuth
     /// <summary>
     /// JWT Auth CFAuthPlugin.
     /// </summary>
-    public class CFAuthenticationProviderPlugin : IAuthenticationProvider
+    public partial class CFAuthenticationProviderPlugin : IAuthenticationProvider
     {
+        private readonly IHttpContextAccessor _contextAccessor;
+        private readonly IUserManager _userManager;
         private JwtValidator? _jwtValidator;
         private IKeyProvider? _keyProvider;
-        private IHttpContextAccessor _contextAccessor;
         private string? _audiences;
         private string? _cookieName;
         private string? _headerName;
@@ -29,9 +32,11 @@ namespace Jellyfin.Plugin.CFAuth
         /// Initializes a new instance of the <see cref="CFAuthenticationProviderPlugin"/> class.
         /// </summary>
         /// <param name="contextAccessor">The HttpContext.</param>
-        public CFAuthenticationProviderPlugin(IHttpContextAccessor contextAccessor)
+        /// <param name="userManager">The UserManager.</param>
+        public CFAuthenticationProviderPlugin(IHttpContextAccessor contextAccessor, IUserManager userManager)
         {
             _contextAccessor = contextAccessor;
+            _userManager = userManager;
         }
 
         /// <inheritdoc/>
@@ -39,6 +44,9 @@ namespace Jellyfin.Plugin.CFAuth
 
         /// <inheritdoc/>
         public bool IsEnabled => true;
+
+        [GeneratedRegex(@"[\w@\.]+")]
+        private static partial Regex ValidCharsRegex();
 
         [MemberNotNullWhen(true, ["_keyProvider", "_jwtValidator", "_audiences", "_cookieName", "_headerName"])]
         private bool Init()
@@ -115,6 +123,14 @@ namespace Jellyfin.Plugin.CFAuth
             {
                 return claim.Key.Equals(ClaimTypes.Email, StringComparison.Ordinal);
             }).FirstOrDefault().Value ?? throw GenericError();
+
+            email = ValidCharsRegex().Replace(email, string.Empty);
+
+            if (_userManager.GetUserByName(email) is null)
+            {
+                var user = await _userManager.CreateUserAsync(email).ConfigureAwait(false);
+                user.EnableLocalPassword = false;
+            }
 
             return new ProviderAuthenticationResult
             {
