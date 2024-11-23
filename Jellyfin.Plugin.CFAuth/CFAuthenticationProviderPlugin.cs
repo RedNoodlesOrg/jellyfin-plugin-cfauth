@@ -8,9 +8,11 @@ using Jellyfin.Data.Entities;
 using Jellyfin.Plugin.CFAuth.Configuration;
 using JWTValidation;
 using JWTValidation.KeyManagement;
+using MediaBrowser.Common;
 using MediaBrowser.Controller.Authentication;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Plugins;
+using MediaBrowser.Model.Users;
 using Microsoft.AspNetCore.Http;
 
 namespace Jellyfin.Plugin.CFAuth
@@ -18,10 +20,10 @@ namespace Jellyfin.Plugin.CFAuth
     /// <summary>
     /// JWT Auth CFAuthPlugin.
     /// </summary>
-    public partial class CFAuthenticationProviderPlugin : IAuthenticationProvider
+    public partial class CFAuthenticationProviderPlugin : IAuthenticationProvider, IPasswordResetProvider
     {
         private readonly IHttpContextAccessor _contextAccessor;
-        private readonly IUserManager _userManager;
+        private readonly IApplicationHost _applicationHost;
         private JwtValidator? _jwtValidator;
         private IKeyProvider? _keyProvider;
         private string? _audiences;
@@ -31,12 +33,12 @@ namespace Jellyfin.Plugin.CFAuth
         /// <summary>
         /// Initializes a new instance of the <see cref="CFAuthenticationProviderPlugin"/> class.
         /// </summary>
-        /// <param name="contextAccessor">The HttpContext.</param>
-        /// <param name="userManager">The UserManager.</param>
-        public CFAuthenticationProviderPlugin(IHttpContextAccessor contextAccessor, IUserManager userManager)
+        /// <param name="applicationHost">The ApplicationHost.</param>
+        /// <param name="httpContextAccessor">The ContextAccessor.</param>
+        public CFAuthenticationProviderPlugin(IApplicationHost applicationHost, IHttpContextAccessor httpContextAccessor)
         {
-            _contextAccessor = contextAccessor;
-            _userManager = userManager;
+            _applicationHost = applicationHost;
+            _contextAccessor = httpContextAccessor;
         }
 
         /// <inheritdoc/>
@@ -45,7 +47,7 @@ namespace Jellyfin.Plugin.CFAuth
         /// <inheritdoc/>
         public bool IsEnabled => true;
 
-        [GeneratedRegex(@"[\w@\.]+")]
+        [GeneratedRegex(@"[^\w@\.]+")]
         private static partial Regex ValidCharsRegex();
 
         [MemberNotNullWhen(true, ["_keyProvider", "_jwtValidator", "_audiences", "_cookieName", "_headerName"])]
@@ -121,15 +123,19 @@ namespace Jellyfin.Plugin.CFAuth
 
             string email = (string)result.Claims.Where(claim =>
             {
-                return claim.Key.Equals(ClaimTypes.Email, StringComparison.Ordinal);
+                return claim.Key.Equals("email", StringComparison.Ordinal);
             }).FirstOrDefault().Value ?? throw GenericError();
 
             email = ValidCharsRegex().Replace(email, string.Empty);
 
-            if (_userManager.GetUserByName(email) is null)
+            var userManager = _applicationHost.Resolve<IUserManager>();
+            if (userManager.GetUserByName(email) is null)
             {
-                var user = await _userManager.CreateUserAsync(email).ConfigureAwait(false);
-                user.EnableLocalPassword = false;
+                var user = await userManager.CreateUserAsync(email).ConfigureAwait(false);
+                var providerName = GetType().FullName!;
+                user.AuthenticationProviderId = providerName;
+                user.PasswordResetProviderId = providerName;
+                await userManager.UpdateUserAsync(user).ConfigureAwait(false);
             }
 
             return new ProviderAuthenticationResult
@@ -148,6 +154,18 @@ namespace Jellyfin.Plugin.CFAuth
         public bool HasPassword(User user)
         {
             return false;
+        }
+
+        /// <inheritdoc/>
+        public Task<ForgotPasswordResult> StartForgotPasswordProcess(User user, bool isInNetwork)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <inheritdoc/>
+        public Task<PinRedeemResult> RedeemPasswordResetPin(string pin)
+        {
+            throw new NotImplementedException();
         }
     }
 }
